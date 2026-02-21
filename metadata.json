@@ -1,0 +1,9 @@
+{
+  "name": "NairaAura",
+  "description": "NAIRA AURA is not just a marketplace; it is a cryptographic escrow environment designed to eliminate \"off-platform maneuvers\" and protect Nigerian capital. Powered by NairaIntelligence™, every trade is shielded by real-time AI integrity scans.\n",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation",
+    "microphone"
+  ]
+}

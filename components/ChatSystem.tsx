@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { scanChatMessage } from '../services/geminiService';
+import { scanForOffPlatformManeuvers } from '../services/geminiService';
 import { Product } from '../types';
 
 interface ChatSystemProps {
@@ -30,7 +30,7 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({ product, onClose, onPena
     setInputText('');
     setIsScanning(true);
 
-    const scanResult = await scanChatMessage(userMsg);
+    const scanResult = await scanForOffPlatformManeuvers(userMsg);
     setIsScanning(false);
 
     if (scanResult.isOffPlatformAttempt) {

@@ -20,8 +20,9 @@ export interface Product {
   images: string[];
   expiryDate?: string;
   purchaseDate?: string;
-  condition: 'New' | 'Used';
+  condition: 'New' | 'Used' | 'Refurbished';
   location: string;
+  brand?: string;
   createdAt: string;
   isSold: boolean;
   sellerRating: number;
@@ -30,6 +31,7 @@ export interface Product {
   priceAnalysis?: string;
   reviews: Review[];
   trustVelocity?: number; // 0-100
+  isBoosted?: boolean;
 }
 
 export interface MarketRequest {
@@ -106,6 +108,12 @@ export interface InventoryItem {
   currentMarketValue: number;
   lastRestockDate: string;
   inflationImpact: number; // Percentage
+}
+
+declare global {
+  interface Window {
+    toggleDarkMode: () => void;
+  }
 }
 
 export interface SmartContract {

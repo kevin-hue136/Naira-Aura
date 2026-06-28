@@ -28,6 +28,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [showRatingModal, setShowRatingModal] = useState<{txId: string, productId: string} | null>(null);
   const [topUpAmount, setTopUpAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [topUpError, setTopUpError] = useState('');
+  const [bankBalance, setBankBalance] = useState(6000000); // Simulated external bank balance
+
+  const [sortKey, setSortKey] = useState<'timestamp' | 'amount' | 'type' | 'status'>('timestamp');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
   
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -36,10 +42,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const handleTopUpSubmit = () => {
     const amt = parseFloat(topUpAmount);
+    if (amt > bankBalance) {
+      setTopUpError("Account balance insufficient.");
+      return;
+    }
     if (amt > 0) {
       onTopUp(amt);
+      setBankBalance(prev => prev - amt);
       setShowTopUp(false);
       setTopUpAmount('');
+      setTopUpError('');
     }
   };
 
@@ -50,6 +62,52 @@ export const Dashboard: React.FC<DashboardProps> = ({
       setShowWithdraw(false);
       setWithdrawAmount('');
     }
+  };
+
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    let valA: any;
+    let valB: any;
+
+    switch (sortKey) {
+      case 'timestamp':
+        valA = new Date(a.timestamp).getTime();
+        valB = new Date(b.timestamp).getTime();
+        break;
+      case 'amount':
+        valA = a.amount;
+        valB = b.amount;
+        break;
+      case 'type':
+        valA = a.type;
+        valB = b.type;
+        break;
+      case 'status':
+        valA = a.status;
+        valB = b.status;
+        break;
+      default:
+        return 0;
+    }
+
+    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('desc'); // Default to descending for new sort key
+    }
+  };
+
+  const getSortIcon = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      return sortDirection === 'asc' ? '▲' : '▼';
+    }
+    return '';
   };
 
   const submitRating = () => {
@@ -139,18 +197,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <table className="w-full text-left min-w-[600px] lg:min-w-full">
             <thead className="bg-[#0D0E10] text-[8px] lg:text-[10px] font-black uppercase tracking-[0.3em] lg:tracking-[0.4em] text-slate-500 border-b border-white/10">
               <tr>
-                <th className="px-6 lg:px-12 py-4 lg:py-8">Asset / Ref</th>
-                <th className="px-6 lg:px-12 py-4 lg:py-8">Capital Flow</th>
-                <th className="px-6 lg:px-12 py-4 lg:py-8">Classification</th>
-                <th className="px-6 lg:px-12 py-4 lg:py-8">State</th>
+                <th className="px-6 lg:px-12 py-4 lg:py-8 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('timestamp')}>Asset / Ref {getSortIcon('timestamp')}</th>
+                <th className="px-6 lg:px-12 py-4 lg:py-8 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('amount')}>Capital Flow {getSortIcon('amount')}</th>
+                <th className="px-6 lg:px-12 py-4 lg:py-8 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('type')}>Classification {getSortIcon('type')}</th>
+                <th className="px-6 lg:px-12 py-4 lg:py-8 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('status')}>State {getSortIcon('status')}</th>
                 <th className="px-6 lg:px-12 py-4 lg:py-8 text-right">Settlement</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
-              {transactions.length === 0 ? (
+              {sortedTransactions.length === 0 ? (
                 <tr><td colSpan={5} className="px-12 py-24 lg:py-32 text-center text-slate-600 font-black uppercase tracking-[0.3em] text-[10px] lg:text-xs">No activity in pipeline</td></tr>
               ) : (
-                transactions.map(tx => {
+                sortedTransactions.map(tx => {
                   const product = products.find(p => p.id === tx.productId);
                   return (
                     <tr key={tx.id} className="hover:bg-white/5 transition-all duration-300">
@@ -274,12 +332,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                  <input 
                   type="number" 
                   placeholder="₦ Amount" 
-                  className="w-full p-5 md:p-6 rounded-2xl px-8 md:px-10 bg-[#0D0E10] border border-white/10 outline-none text-white font-black text-xl md:text-2xl focus:border-emerald-500/50 shadow-inner tabular-nums tracking-tighter" 
+                  className={`w-full p-5 md:p-6 rounded-2xl px-8 md:px-10 bg-[#0D0E10] border outline-none text-white font-black text-xl md:text-2xl shadow-inner tabular-nums tracking-tighter ${topUpError ? 'border-red-500' : 'border-white/10 focus:border-emerald-500/50'}`} 
                   value={topUpAmount} 
-                  onChange={e => setTopUpAmount(e.target.value)} 
+                  onChange={e => {
+                    setTopUpAmount(e.target.value);
+                    if (topUpError) setTopUpError('');
+                  }} 
                  />
                  <span className="absolute right-6 md:right-8 top-6 md:top-7 text-emerald-500 font-black text-[9px] md:text-xs uppercase tracking-widest">NGN</span>
                </div>
+               {topUpError && (
+                 <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center animate-pulse">
+                   {topUpError}
+                 </p>
+               )}
+               <p className="text-slate-500 text-[8px] font-bold uppercase tracking-widest text-center">
+                 Bank Balance: ₦{bankBalance.toLocaleString()}
+               </p>
              </div>
 
              <button onClick={handleTopUpSubmit} className="w-full bg-emerald-600 text-white font-black py-5 md:py-6 rounded-2xl shadow-2xl shadow-emerald-900/40 text-[11px] md:text-sm uppercase tracking-widest active:scale-95 transition-all border border-emerald-500/20">

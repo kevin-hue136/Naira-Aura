@@ -14,42 +14,134 @@ import { RequestView } from './components/RequestView';
 import { AccountView } from './components/AccountView';
 import { ChatSystem } from './components/ChatSystem';
 import { Product, Transaction, Category, User, AppNotification, CartItem, AiSettings, MarketRequest } from './types';
+import { triggerHapticImpact, triggerHapticNotification, showNativeToast } from './services/androidService';
 
 const generateMockProducts = (): Product[] => {
-  const productLibrary = {
-    Electronics: [{ name: 'iPhone 15 Pro Max', kw: 'iphone-15', basePrice: 1650000 }],
-    Vehicles: [{ name: '2020 Toyota Corolla', kw: 'corolla', basePrice: 14500000 }],
-    Fashion: [{ name: 'Men\'s Designer Shoes', kw: 'shoes', basePrice: 85000 }],
-    Groceries: [{ name: 'Rice Bag 50kg', kw: 'rice', basePrice: 78000 }]
-  };
+  const mockProductsData = [
+    {
+      id: '1',
+      title: 'iPhone 15 Pro Max',
+      category: 'Electronics' as Category,
+      brand: 'Apple',
+      condition: 'New' as const,
+      location: 'Ikeja, Lagos',
+      price: 1650000,
+      kw: 'iphone-15',
+      isBoosted: true,
+    },
+    {
+      id: '2',
+      title: 'Samsung Galaxy S23 Ultra',
+      category: 'Electronics' as Category,
+      brand: 'Samsung',
+      condition: 'Refurbished' as const,
+      location: 'Lekki, Lagos',
+      price: 950000,
+      kw: 'samsung-s23',
+      isBoosted: true,
+    },
+    {
+      id: '3',
+      title: 'MacBook Pro M2 16"',
+      category: 'Electronics' as Category,
+      brand: 'Apple',
+      condition: 'Used' as const,
+      location: 'Wuse, Abuja (FCT)',
+      price: 1200000,
+      kw: 'macbook',
+    },
+    {
+      id: '4',
+      title: 'Sony PlayStation 5',
+      category: 'Electronics' as Category,
+      brand: 'Sony',
+      condition: 'New' as const,
+      location: 'Garki, Abuja (FCT)',
+      price: 620000,
+      kw: 'ps5',
+    },
+    {
+      id: '5',
+      title: '2020 Toyota Corolla',
+      category: 'Vehicles' as Category,
+      brand: 'Toyota',
+      condition: 'Used' as const,
+      location: 'Port Harcourt, Rivers',
+      price: 14500000,
+      kw: 'corolla',
+    },
+    {
+      id: '6',
+      title: '2018 Honda Civic',
+      category: 'Vehicles' as Category,
+      brand: 'Honda',
+      condition: 'Used' as const,
+      location: 'Ibadan, Oyo',
+      price: 11000000,
+      kw: 'civic',
+    },
+    {
+      id: '7',
+      title: 'Nike Air Max Sneakers',
+      category: 'Fashion' as Category,
+      brand: 'Nike',
+      condition: 'New' as const,
+      location: 'Ikeja, Lagos',
+      price: 85000,
+      kw: 'shoes',
+    },
+    {
+      id: '8',
+      title: 'Gucci Leather Handbag',
+      category: 'Fashion' as Category,
+      brand: 'Gucci',
+      condition: 'New' as const,
+      location: 'Kano, Kano',
+      price: 450000,
+      kw: 'handbag',
+    },
+    {
+      id: '9',
+      title: 'Mama Gold Rice Bag 50kg',
+      category: 'Groceries' as Category,
+      brand: 'Mama Gold',
+      condition: 'New' as const,
+      location: 'Enugu, Enugu',
+      price: 78000,
+      kw: 'rice',
+    },
+    {
+      id: '10',
+      title: 'HP EliteBook 840 G8',
+      category: 'Electronics' as Category,
+      brand: 'HP',
+      condition: 'Refurbished' as const,
+      location: 'Kaduna, Kaduna',
+      price: 280000,
+      kw: 'laptop',
+    }
+  ];
 
-  const products: Product[] = [];
-  let idCounter = 1;
-
-  Object.entries(productLibrary).forEach(([category, items]) => {
-    items.forEach((item) => {
-      products.push({
-        id: idCounter.toString(),
-        sellerId: `user_${idCounter}`,
-        title: item.name,
-        description: `Premium quality ${item.name}. Secure with NAIRA AURA protocol. No off-platform maneuvers allowed.`,
-        price: item.basePrice,
-        category: category as Category,
-        images: [`https://loremflickr.com/800/600/${item.kw}?lock=${idCounter}`],
-        condition: 'New',
-        location: 'Ikeja, Lagos',
-        createdAt: new Date().toISOString(),
-        isSold: false,
-        sellerRating: 4.8,
-        sellerReviewCount: 12,
-        isVerified: true,
-        reviews: [],
-        trustVelocity: 85 + Math.floor(Math.random() * 15)
-      });
-      idCounter++;
-    });
-  });
-  return products;
+  return mockProductsData.map((item, idx) => ({
+    id: item.id,
+    sellerId: `user_${item.id}`,
+    title: item.title,
+    description: `Premium quality ${item.title}. Certified under the NAIRA AURA cryptographic protection protocol. Safe trading guaranteed.`,
+    price: item.price,
+    category: item.category,
+    brand: item.brand,
+    images: [`https://loremflickr.com/800/600/${item.kw}?lock=${idx + 1}`],
+    condition: item.condition,
+    location: item.location,
+    createdAt: new Date().toISOString(),
+    isSold: false,
+    sellerRating: 4.7 + (idx % 4) * 0.1,
+    sellerReviewCount: 8 + idx * 3,
+    isVerified: true,
+    reviews: [],
+    trustVelocity: 88 + (idx % 3) * 4,
+    isBoosted: item.isBoosted || false
+  }));
 };
 
 const App: React.FC = () => {
@@ -67,13 +159,26 @@ const App: React.FC = () => {
   const [activeNotification, setActiveNotification] = useState<AppNotification | null>(null);
   const [aiAssistantTrigger, setAiAssistantTrigger] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  useEffect(() => {
+    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      setTheme('dark');
+    } else {
+      setTheme('light');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    window.toggleDarkMode();
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
   
   const [user, setUser] = useState<User>({
     id: 'me',
     name: 'John Adebayo',
     email: 'john@example.com',
     phoneNumber: '+234 812 345 6789',
-    balance: 5000000,
+    balance: 6000000,
     notifications: [],
     aiSettings: { voiceEnabled: true, voiceName: 'Zephyr', personality: 'Friendly' },
     trustVelocity: 94,
@@ -88,6 +193,8 @@ const App: React.FC = () => {
   const handleUpdateProfile = (newData: Partial<User>) => {
     setUser(prev => ({ ...prev, ...newData }));
     setActiveNotification({ id: Math.random().toString(), text: "Aura Identity Synced", type: 'success', time: 'Now', read: false });
+    triggerHapticImpact('heavy');
+    showNativeToast("Aura Identity Synced");
     setTimeout(() => setActiveNotification(null), 2000);
   };
 
@@ -95,6 +202,8 @@ const App: React.FC = () => {
     if (cart.find(item => item.product.id === product.id)) return;
     setCart(prev => [...prev, { product, addedAt: new Date().toISOString() }]);
     setActiveNotification({ id: Math.random().toString(), text: `Asset Locked in Cart`, type: 'success', time: 'Now', read: false });
+    triggerHapticImpact('light');
+    showNativeToast("Asset Locked in Cart");
     setTimeout(() => setActiveNotification(null), 2000);
   };
 
@@ -102,6 +211,8 @@ const App: React.FC = () => {
     setRequests([request, ...requests]);
     setActiveTab('hunt');
     setActiveNotification({ id: Math.random().toString(), text: `Broadcast Sent to Merchants`, type: 'info', time: 'Now', read: false });
+    triggerHapticImpact('medium');
+    showNativeToast("Broadcast Sent to Merchants");
     setTimeout(() => setActiveNotification(null), 2000);
   };
 
@@ -135,6 +246,8 @@ const App: React.FC = () => {
       time: 'Now', 
       read: false 
     });
+    triggerHapticNotification('success');
+    showNativeToast(`Protocol Success: +${earnedPoints} Aura Points`);
     setShowPaymentModal(false);
     setSelectedProduct(null);
     setActiveTab('dashboard');
@@ -153,6 +266,7 @@ const App: React.FC = () => {
         onToggleNotifications={() => setShowNotificationCenter(!showNotificationCenter)}
         onToggleCart={() => setShowCartDrawer(!showCartDrawer)}
         theme={theme}
+        toggleTheme={toggleTheme}
       >
         {activeTab !== 'account' && (
           <div className="mb-12 lg:mb-20 flex flex-col md:flex-row items-stretch gap-6 lg:gap-10">
@@ -189,6 +303,7 @@ const App: React.FC = () => {
         {activeTab === 'market' && (
           <Marketplace 
             products={products} 
+            requests={requests}
             onProductClick={setSelectedProduct} 
             onBuyNow={(p) => {setSelectedProduct(p); setShowPaymentModal(true);}}
             onAddToCart={handleAddToCart}
@@ -215,7 +330,15 @@ const App: React.FC = () => {
             }} 
           />
         )}
-        {activeTab === 'sell' && <SellForm onSubmit={(p) => {setProducts([{...p, reviews: []}, ...products]); setActiveTab('market');}} />}
+        {activeTab === 'sell' && <SellForm onSubmit={(p) => {
+          setProducts([{...p, reviews: []}, ...products]); 
+          if (p.isBoosted) {
+            setUser(prev => ({...prev, balance: prev.balance - 2000}));
+            setActiveNotification({ id: Math.random().toString(), text: "Premium Boost Active (-₦2,000)", type: 'success', time: 'Now', read: false });
+            setTimeout(() => setActiveNotification(null), 3000);
+          }
+          setActiveTab('market');
+        }} />}
         {activeTab === 'dashboard' && (
           <Dashboard 
             transactions={transactions} 
@@ -296,7 +419,14 @@ const App: React.FC = () => {
       {showCartDrawer && <CartDrawer items={cart} isOpen={showCartDrawer} onClose={() => setShowCartDrawer(false)} onRemove={(id) => setCart(c => c.filter(i => i.product.id !== id))} onCheckout={() => setShowCartDrawer(false)} userBalance={user.balance} theme={theme} />}
 
       <NotificationToast notification={activeNotification} onClose={() => setActiveNotification(null)} />
-      <AIAssistant externalTrigger={aiAssistantTrigger} aiSettings={user.aiSettings} />
+      <AIAssistant 
+        externalTrigger={aiAssistantTrigger} 
+        aiSettings={user.aiSettings} 
+        user={user}
+        products={products}
+        requests={requests}
+        cart={cart}
+      />
     </div>
   );
 };

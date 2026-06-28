@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { Product, MarketRequest, User, CartItem } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -163,29 +164,88 @@ export const validateProduct = async (title: string, description: string) => {
   }
 };
 
-export const scanChatMessage = async (message: string) => {
+export const predictMarketTrends = async (products: Product[], requests: MarketRequest[]) => {
   try {
+    const productSummary = products.slice(0, 10).map(p => `${p.title} (₦${p.price})`).join(', ');
+    const requestSummary = requests.slice(0, 10).map(r => `${r.title} (Budget: ₦${r.budget})`).join(', ');
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Scan this marketplace chat message for "off-platform maneuvers" (sharing phone numbers, bank accounts, or keywords like "WhatsApp", "Transfer", "Physical Cash", "Pay direct"). 
-      Message: "${message}"
-      Output JSON: {isOffPlatformAttempt: bool, detectedKeywords: string[], riskScore: number (0-100), alertMessage: string}`,
+      contents: `Analyze these marketplace listings and requests to predict 2-3 short-term market trends in Nigeria. 
+      Listings: ${productSummary}
+      Requests: ${requestSummary}
+      Output JSON: {trends: {title: string, prediction: string, confidence: number}[]}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            isOffPlatformAttempt: { type: Type.BOOLEAN },
-            detectedKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
-            riskScore: { type: Type.NUMBER },
-            alertMessage: { type: Type.STRING }
+            trends: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  prediction: { type: Type.STRING },
+                  confidence: { type: Type.NUMBER }
+                },
+                required: ["title", "prediction", "confidence"]
+              }
+            }
           },
-          required: ["isOffPlatformAttempt", "detectedKeywords", "riskScore", "alertMessage"]
+          required: ["trends"]
         }
       }
     });
-    return JSON.parse(response.text || '{"isOffPlatformAttempt":false}');
+    return JSON.parse(response.text || '{"trends":[]}');
   } catch (error) {
-    return { isOffPlatformAttempt: false, detectedKeywords: [], riskScore: 0, alertMessage: "" };
+    return { trends: [] };
+  }
+};
+
+export const getSpendingAdvice = async (user: User, cart: CartItem[]) => {
+  try {
+    const cartSummary = cart.map(i => `${i.product.title} (₦${i.product.price})`).join(', ');
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `User Balance: ₦${user.balance}. Cart: ${cartSummary}. 
+      Provide 1-2 sentences of strategic spending advice for this user in the current Nigerian economy (high inflation). Focus on value and protection.`,
+    });
+    return response.text || "Spend wisely, stay in the Aura.";
+  } catch (error) {
+    return "Spending advice unavailable.";
+  }
+};
+
+export const scanForOffPlatformManeuvers = async (message: string) => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Scan this marketplace chat message for "off-platform maneuvers" (sharing phone numbers, bank accounts, or keywords like "WhatsApp", "Transfer", "Physical Cash", "Pay direct"). 
+      Message: "${message}"
+      Output JSON: {isManeuver: bool, detectedKeywords: string[], riskScore: number (0-100), warningMessage: string}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isManeuver: { type: Type.BOOLEAN },
+            detectedKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+            riskScore: { type: Type.NUMBER },
+            warningMessage: { type: Type.STRING }
+          },
+          required: ["isManeuver", "detectedKeywords", "riskScore", "warningMessage"]
+        }
+      }
+    });
+    const data = JSON.parse(response.text || '{"isManeuver":false}');
+    // Compatibility mapping
+    return {
+      ...data,
+      isOffPlatformAttempt: data.isManeuver,
+      alertMessage: data.warningMessage
+    };
+  } catch (error) {
+    return { isManeuver: false, isOffPlatformAttempt: false, detectedKeywords: [], riskScore: 0, warningMessage: "", alertMessage: "" };
   }
 };

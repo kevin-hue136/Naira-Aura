@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NairaMart | Secure Fun P2P</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class'
+      };
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       :root {
@@ -16,8 +21,17 @@
         font-family: 'Plus Jakarta Sans', sans-serif;
         margin: 0;
         overflow: hidden;
-        background: #050505;
+      }
+
+      /* Dark mode styles */
+      html.dark body {
+        background: #1A1C20;
         color: #fff;
+      }
+
+      html:not(.dark) body {
+        background: #fff;
+        color: #050505;
       }
       #root {
         height: 100vh;
@@ -45,6 +59,25 @@
       }
       .animate-float { animation: float 4s ease-in-out infinite; }
     </style>
+    <script>
+      // On page load, check for dark mode preference in local storage
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+
+      // Function to toggle dark mode
+      window.toggleDarkMode = () => {
+        if (document.documentElement.classList.contains('dark')) {
+          document.documentElement.classList.remove('dark');
+          localStorage.theme = 'light';
+        } else {
+          document.documentElement.classList.add('dark');
+          localStorage.theme = 'dark';
+        }
+      };
+    </script>
   <script type="importmap">
 {
   "imports": {

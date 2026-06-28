@@ -1,13 +1,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { motion, useDragControls } from 'framer-motion';
-import { generateSpeech, decodeBase64, decodeAudioData, scanForOffPlatformManeuvers } from '../services/geminiService';
-import { AiSettings } from '../types';
+import { motion } from 'framer-motion';
+import Markdown from 'react-markdown';
+import { generateSpeech, decodeBase64, decodeAudioData, scanForOffPlatformManeuvers, predictMarketTrends, getSpendingAdvice } from '../services/geminiService';
+import { AiSettings, User, Product, MarketRequest, CartItem } from '../types';
 
 interface AIAssistantProps {
   externalTrigger?: number;
   aiSettings: AiSettings;
+  user?: User;
+  products?: Product[];
+  requests?: MarketRequest[];
+  cart?: CartItem[];
 }
 
 function encodePCM(bytes: Uint8Array) {
@@ -19,7 +24,14 @@ function encodePCM(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-export const AIAssistant: React.FC<AIAssistantProps> = ({ externalTrigger = 0, aiSettings }) => {
+export const AIAssistant: React.FC<AIAssistantProps> = ({ 
+  externalTrigger = 0, 
+  aiSettings,
+  user,
+  products = [],
+  requests = [],
+  cart = []
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string}[]>([]);
@@ -130,12 +142,35 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ externalTrigger = 0, a
       return;
     }
 
+    // Special Commands
+    if (userMsg.toLowerCase().includes('predict') || userMsg.toLowerCase().includes('trends')) {
+      const trends = await predictMarketTrends(products, requests);
+      setIsTyping(false);
+      const trendText = trends.trends.map((t: any) => `**${t.title}** (Confidence: ${t.confidence}%)\n${t.prediction}`).join('\n\n');
+      setMessages(prev => [...prev, { role: 'ai', text: `### Market Pulse Predictions\n\n${trendText || "Market data is currently too volatile for a stable prediction. Keep trading to feed the neural link."}` }]);
+      return;
+    }
+
+    if (userMsg.toLowerCase().includes('spend') || userMsg.toLowerCase().includes('budget') || userMsg.toLowerCase().includes('advice')) {
+      if (user) {
+        const advice = await getSpendingAdvice(user, cart);
+        setIsTyping(false);
+        setMessages(prev => [...prev, { role: 'ai', text: advice }]);
+        return;
+      }
+    }
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: userMsg,
-        config: { systemInstruction: "You are 'NairaIntelligence™'. High-energy assistant. Warn users about off-platform cash deals." }
+        config: { 
+          systemInstruction: `You are 'NairaIntelligence™'. High-energy assistant. 
+          Context: User Balance is ₦${user?.balance || 'unknown'}. 
+          There are ${products.length} live listings and ${requests.length} hunt requests.
+          Warn users about off-platform cash deals. Be sharp, protective, and helpful.` 
+        }
       });
       setIsTyping(false);
       setMessages(prev => [...prev, { role: 'ai', text: response.text || "Recalibrating..." }]);
@@ -147,7 +182,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ externalTrigger = 0, a
   return (
     <div className="fixed bottom-10 right-10 z-[100] flex flex-col items-end gap-4">
       {isOpen && (
-        <div className="w-[320px] sm:w-[400px] h-[500px] sm:h-[650px] glass-card rounded-[2rem] sm:rounded-[2.5rem] flex flex-col overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.8)] border border-white/10 animate-in slide-in-from-bottom-12 duration-500">
+        <div className="w-[320px] sm:w-[400px] h-[500px] sm:h-[650px] glass-card rounded-[2rem] sm:rounded-[2.5rem] flex flex-col overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.8)] border border-white/10 animate-in slide-in-from-bottom-12 duration-300">
           <div className="h-20 sm:h-24 px-6 sm:px-8 flex items-center justify-between border-b border-white/5 bg-emerald-500/5">
              <div className="flex items-center gap-3 sm:gap-4">
                 <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-500 ${isLive ? 'bg-emerald-500 shadow-[0_0_30px_#10b981]' : 'bg-white/10'}`}>
@@ -163,7 +198,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ externalTrigger = 0, a
              </button>
           </div>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-4 sm:space-y-6 custom-scrollbar bg-black/10">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar bg-black/20">
             {isLive ? (
               <div className="flex flex-col items-center justify-center h-full space-y-8 sm:space-y-10 animate-pulse">
                 <div className="flex items-end gap-1.5 sm:gap-2 h-16 sm:h-20">
@@ -171,21 +206,43 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ externalTrigger = 0, a
                      <div key={i} className="w-1 sm:w-1.5 bg-emerald-500 rounded-full" style={{ height: `${Math.random() * 80 + 20}%`, animation: `bounce 1s infinite ${i * 0.1}s` }}></div>
                    ))}
                 </div>
-                <p className="text-[9px] sm:text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em] text-center max-w-xs leading-loose">The Orb is listening. Speak clearly about the marketplace.</p>
-                <button onClick={stopLiveSession} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 sm:px-10 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all shadow-2xl">Kill Link</button>
+                <p className="text-[10px] sm:text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] text-center max-w-xs leading-loose">The Orb is listening. Speak clearly about the marketplace.</p>
+                <button onClick={stopLiveSession} className="bg-red-500/10 text-red-500 border border-red-500/20 px-8 sm:px-10 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all shadow-2xl">Kill Link</button>
               </div>
             ) : (
               messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] px-5 sm:px-6 py-3 sm:py-4 rounded-[1.2rem] sm:rounded-[1.5rem] text-[12px] sm:text-[13px] font-bold leading-relaxed shadow-xl ${
-                    m.role === 'user' ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-200 border border-white/5'
+                <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                  <div className="flex items-center gap-2 mb-1 px-2">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                      {m.role === 'user' ? 'You' : 'NairaIntelligence'}
+                    </span>
+                  </div>
+                  <div className={`max-w-[90%] px-5 sm:px-6 py-3 sm:py-4 rounded-[1.5rem] text-[14px] leading-relaxed shadow-2xl ${
+                    m.role === 'user' 
+                      ? 'bg-emerald-600 text-white font-medium rounded-tr-none' 
+                      : 'bg-[#1A1C20] text-slate-100 border border-white/10 font-normal rounded-tl-none'
                   }`}>
-                    {m.text}
+                    {m.role === 'ai' ? (
+                      <div className="markdown-container">
+                        <Markdown>{m.text}</Markdown>
+                      </div>
+                    ) : (
+                      m.text
+                    )}
                   </div>
                 </div>
               ))
             )}
-            {isTyping && <div className="text-[9px] sm:text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-2">Neural Link Active...</div>}
+            {isTyping && (
+              <div className="flex items-center gap-2 ml-2">
+                <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce"></div>
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                </div>
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Neural Link Active</span>
+              </div>
+            )}
           </div>
 
           {!isLive && (
@@ -211,10 +268,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ externalTrigger = 0, a
       <motion.button 
         drag
         dragConstraints={{ left: -window.innerWidth + 100, right: 0, top: -window.innerHeight + 100, bottom: 0 }}
-        dragElastic={0.1}
+        dragElastic={0}
         dragMomentum={false}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all duration-700 shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:scale-110 active:scale-90 group relative cursor-grab active:cursor-grabbing ${isOpen ? 'bg-white text-black' : 'bg-emerald-500 text-black'}`}
+        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:scale-110 active:scale-90 group relative cursor-grab active:cursor-grabbing transition-[background-color,color,box-shadow] duration-200 ${isOpen ? 'bg-white text-black' : 'bg-emerald-500 text-black'}`}
       >
         <div className="absolute -inset-2 bg-emerald-500 rounded-full blur-xl opacity-20 group-hover:opacity-40 animate-pulse"></div>
         {isOpen ? (
@@ -226,6 +283,11 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ externalTrigger = 0, a
 
       <style>{`
         @keyframes bounce { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(2); } }
+        .markdown-container p { margin-bottom: 0.75rem; }
+        .markdown-container p:last-child { margin-bottom: 0; }
+        .markdown-container ul, .markdown-container ol { margin-left: 1.25rem; margin-bottom: 0.75rem; }
+        .markdown-container li { margin-bottom: 0.25rem; }
+        .markdown-container strong { color: #10b981; font-weight: 800; }
       `}</style>
     </div>
   );
